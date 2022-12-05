@@ -376,10 +376,10 @@ class Search:
 
 
 def main():
-    EPOCHS = 1
-    GENERATIONS = 1
+    EPOCHS = 5
+    GENERATIONS = 10
     MAX_DEPTH = 10
-    N_POP = 4
+    N_POP = 12
 
     # The model will use Cifar-10 to train and test each individual
     # Loss, optimizer function can be changed as well as the dataset

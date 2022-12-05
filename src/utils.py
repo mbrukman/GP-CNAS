@@ -34,8 +34,10 @@ class ResBlock(tf.keras.layers.Layer):
         Normally the shortcut has a linear transformation layer to down sample
         the input to match the output.
 
-        Although in the article nothing is showed, so I assumed the shortcut is directly connect to the output.
-        To down sample the input was used a Max-Pooling calculated based on input and output size.
+        Although in the article nothing is showed, so I assumed the shortcut is directly connect to the output,
+        but implementing that makes the program slower due the in-depth zero tensors needed.
+        So, to down sample the input was used a Convolution to down sample and learn through the shortcut, is basically
+        the linear transformation is a non-linear because was used a ReLU actiavtion function.
 
         To match the filters size was done the difference and zero padded the input or the output. In the
         end input and output are added.
@@ -58,7 +60,19 @@ class ResBlock(tf.keras.layers.Layer):
         config.update({"layers": self.layers})
         return config
 
-    @tf.function
+    def build(self, input_shape):
+        """
+        Overried function from Keras being called one time when input is passed. It gets their shape
+        and was used to create the convolution to down sample the original input to match the ouput
+        layer.
+        :param input_shape: Original input shape tuple
+        """
+        out = self.compute_output_shape(input_shape)
+
+        # The tuple shape is: (batch size, height, width, depth channels)
+        self.conv = tf.keras.layers.Conv2D(out[-1], (input_shape[1]-out[1]+1, input_shape[2]-out[2]+1),
+                                           activation="relu")
+
     def shortcut(self, inputs, x):
         """
         This method implements the shortcut like was explained above.
@@ -69,30 +83,7 @@ class ResBlock(tf.keras.layers.Layer):
         :param x: Output tensor
         :return: Add Keras layer adding input with output
         """
-        in_shape = inputs.get_shape().as_list()
-        x_shape = x.get_shape().as_list()
-
-        kernel = (in_shape[1] - x_shape[1] + 1, in_shape[2] - x_shape[2] + 1)
-
-        pool = tf.nn.max_pool2d(inputs, kernel, strides=1, padding="VALID")
-
-        channels = abs(in_shape[-1] - x_shape[-1])
-
-        # If pool as more channels than output, pad input
-        # pool(same_height, same_width, more_channels), x(same_height, same_width, less_channels)
-        if in_shape[-1] > x_shape[-1]:
-            zeros = tf.zeros(shape=tf.shape(pool))
-            zeros = zeros[:, :, :, :channels]
-            x = tf.concat([x, zeros], axis=-1)
-
-        # If pool as less channels than output, pad it
-        # pool(same_height, same_width, less_channels), x(same_height, same_width, more_channels)
-        elif in_shape[-1] < x_shape[-1]:
-            zeros = tf.zeros(shape=tf.shape(x))
-            zeros = zeros[:, :, :, :channels]
-            pool = tf.concat([pool, zeros], axis=-1)
-
-        return tf.keras.layers.Add(trainable=False)([pool, x])
+        return tf.keras.layers.Add(trainable=False)([self.conv(inputs), x])
 
     def compute_output_shape(self, input_shape: tuple):
         """
